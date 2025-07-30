@@ -22,20 +22,14 @@ export default function Home() {
 
   const languages = [
     { code: "en", name: "English" },
-    { code: "es", name: "Spanish" },
-    { code: "fr", name: "French" },
-    { code: "de", name: "German" },
-    { code: "it", name: "Italian" },
-    { code: "pt", name: "Portuguese" },
-    { code: "ru", name: "Russian" },
-    { code: "ja", name: "Japanese" },
-    { code: "ko", name: "Korean" },
-    { code: "zh", name: "Chinese" },
-    { code: "ar", name: "Arabic" },
     { code: "hi", name: "Hindi" },
+    { code: "ar", name: "Arabic" },
   ];
 
+  const canRecord = fromLanguage && toLanguage && fromLanguage !== toLanguage;
+
   const handleRecording = () => {
+    if (!canRecord) return;
     setIsRecording(!isRecording);
     // Add your recording logic here
   };
@@ -79,9 +73,12 @@ export default function Home() {
           <div className="relative">
             <Button
               onClick={handleRecording}
+              disabled={!canRecord}
               size="lg"
               className={`w-32 h-32 rounded-full text-white font-semibold text-lg transition-all duration-300 ${
-                isRecording
+                !canRecord
+                  ? "bg-gradient-to-r from-gray-400 to-gray-500 cursor-not-allowed shadow-lg opacity-50"
+                  : isRecording
                   ? "bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 shadow-2xl shadow-red-500/25"
                   : "bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 shadow-2xl shadow-blue-500/25"
               }`}
@@ -138,26 +135,45 @@ export default function Home() {
           transition={{ duration: 0.5, delay: 0.4 }}
           className="mb-8"
         >
-          <Card className="shadow-lg border-0 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm">
+          <Card
+            className={`shadow-lg border-0 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm transition-all duration-300 ${
+              !canRecord ? "ring-2 ring-yellow-300 dark:ring-yellow-600" : ""
+            }`}
+          >
             <CardHeader>
-              <CardTitle className="text-center text-xl font-semibold text-slate-700 dark:text-slate-200">
+              <CardTitle className="text-center text-xl font-semibold text-slate-700 dark:text-slate-200 flex items-center justify-center gap-2">
                 Select Languages
+                {!canRecord && (
+                  <span className="text-yellow-500 text-sm">*Required</span>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex items-center gap-4">
                 <div className="flex-1">
                   <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-2">
-                    From
+                    From <span className="text-red-500">*</span>
                   </label>
                   <Select value={fromLanguage} onValueChange={setFromLanguage}>
-                    <SelectTrigger className="w-full h-12 bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600">
+                    <SelectTrigger
+                      className={`w-full h-12 bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 ${
+                        !fromLanguage
+                          ? "border-red-300 dark:border-red-600"
+                          : ""
+                      }`}
+                    >
                       <SelectValue placeholder="Select source language" />
                     </SelectTrigger>
                     <SelectContent>
                       {languages.map((lang) => (
-                        <SelectItem key={lang.code} value={lang.code}>
+                        <SelectItem
+                          key={lang.code}
+                          value={lang.code}
+                          disabled={lang.code === toLanguage}
+                        >
                           {lang.name}
+                          {lang.code === toLanguage &&
+                            " (Already selected as target)"}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -173,7 +189,8 @@ export default function Home() {
                     variant="outline"
                     size="icon"
                     onClick={swapLanguages}
-                    className="rounded-full w-12 h-12 border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700"
+                    disabled={!fromLanguage || !toLanguage}
+                    className="rounded-full w-12 h-12 border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50"
                   >
                     <RotateCw className="w-4 h-4" />
                   </Button>
@@ -181,16 +198,26 @@ export default function Home() {
 
                 <div className="flex-1">
                   <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-2">
-                    To
+                    To <span className="text-red-500">*</span>
                   </label>
                   <Select value={toLanguage} onValueChange={setToLanguage}>
-                    <SelectTrigger className="w-full h-12 bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600">
+                    <SelectTrigger
+                      className={`w-full h-12 bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 ${
+                        !toLanguage ? "border-red-300 dark:border-red-600" : ""
+                      }`}
+                    >
                       <SelectValue placeholder="Select target language" />
                     </SelectTrigger>
                     <SelectContent>
                       {languages.map((lang) => (
-                        <SelectItem key={lang.code} value={lang.code}>
+                        <SelectItem
+                          key={lang.code}
+                          value={lang.code}
+                          disabled={lang.code === fromLanguage}
+                        >
                           {lang.name}
+                          {lang.code === fromLanguage &&
+                            " (Already selected as source)"}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -269,15 +296,27 @@ export default function Home() {
             className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium ${
               isRecording
                 ? "bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400"
-                : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+                : !canRecord
+                ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400"
+                : "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400"
             }`}
           >
             <div
               className={`w-2 h-2 rounded-full ${
-                isRecording ? "bg-red-500 animate-pulse" : "bg-slate-400"
+                isRecording
+                  ? "bg-red-500 animate-pulse"
+                  : !canRecord
+                  ? "bg-yellow-500"
+                  : "bg-green-500"
               }`}
             />
-            {isRecording ? "Recording in progress..." : "Ready to record"}
+            {isRecording
+              ? "Recording in progress..."
+              : !fromLanguage || !toLanguage
+              ? "Please select both languages to start recording"
+              : fromLanguage === toLanguage
+              ? "Please select different languages"
+              : "Ready to record"}
           </div>
         </motion.div>
       </div>
