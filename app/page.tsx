@@ -11,6 +11,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { useTheme } from "@/components/theme-provider";
 import {
   Mic,
   MicOff,
@@ -27,6 +29,7 @@ import {
 } from "ultravox-client";
 
 export default function Home() {
+  const { theme, isTransitioning } = useTheme();
   const [isRecording, setIsRecording] = useState(false);
   const [fromLanguage, setFromLanguage] = useState("");
   const [toLanguage, setToLanguage] = useState("");
@@ -298,8 +301,23 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-white dark:bg-black p-4">
+    <motion.div
+      key={theme}
+      initial={{ opacity: 0.8 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: isTransitioning ? 0.4 : 0 }}
+      className="min-h-screen bg-white dark:bg-black p-4 relative transition-colors duration-400"
+    >
       <div className="container mx-auto max-w-7xl py-8">
+        {/* Theme Toggle Button - Top Right */}
+        <motion.div
+          className="fixed top-6 right-6 z-50"
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+        >
+          <ThemeToggle />
+        </motion.div>
+
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
@@ -308,9 +326,13 @@ export default function Home() {
           className="text-center mb-12"
         >
           <div className="flex items-center justify-center gap-3 mb-4">
-            <div className="p-3 bg-black dark:bg-white rounded-full">
-              <Languages className="w-8 h-8 text-white dark:text-black" />
-            </div>
+            <motion.div
+              className="p-3 bg-black dark:bg-white rounded-full transition-colors duration-300"
+              whileHover={{ scale: 1.1, rotate: 5 }}
+              transition={{ type: "spring", stiffness: 300 }}
+            >
+              <Languages className="w-8 h-8 text-white dark:text-black transition-colors duration-300" />
+            </motion.div>
             <h1 className="text-4xl font-bold text-black dark:text-white">
               Live Voice Translations
             </h1>
@@ -621,6 +643,6 @@ export default function Home() {
           </motion.div>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }

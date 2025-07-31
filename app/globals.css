@@ -116,7 +116,54 @@
   * {
     @apply border-border outline-ring/50;
   }
+
+  html {
+    transition: background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+      color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
   body {
     @apply bg-background text-foreground;
+    transition: background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+      color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Smooth transitions for all elements with theme-dependent colors */
+  * {
+    transition: background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+      color 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+      border-color 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+      box-shadow 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
+  }
+
+  /* Theme transition animation classes */
+  .theme-transitioning {
+    animation: themeTransition 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  @keyframes themeTransition {
+    0% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.9;
+    }
+    100% {
+      opacity: 1;
+    }
+  }
+
+  /* Enhanced button hover effects for theme toggle */
+  .theme-toggle-btn {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .theme-toggle-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  .dark .theme-toggle-btn:hover {
+    box-shadow: 0 4px 12px rgba(255, 255, 255, 0.1);
   }
 }
