@@ -584,6 +584,21 @@ export default function Home() {
                 </Button>
               </motion.div>
             </motion.div>
+
+            {/* Powered by Aistra AI */}
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 1.0 }}
+              className="text-center mt-8"
+            >
+              <p className="text-sm text-neutral-500 dark:text-neutral-400">
+                Powered by{" "}
+                <span className="font-semibold text-black dark:text-white">
+                  Aistra AI
+                </span>
+              </p>
+            </motion.div>
           </div>
 
           {/* Right Column: Translation Area */}
