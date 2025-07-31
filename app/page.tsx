@@ -461,7 +461,7 @@ export default function Home() {
                     }`}
                   />
                   {isConnecting
-                    ? "Connecting to Ultravox..."
+                    ? "Connecting..."
                     : isRecording
                     ? `Listening for ${getLanguageName(
                         fromLanguage
