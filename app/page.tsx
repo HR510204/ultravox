@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,14 +11,36 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
-import { Mic, MicOff, Languages, Volume2, Copy, RotateCw } from "lucide-react";
+
+import {
+  Mic,
+  MicOff,
+  Languages,
+  Volume2,
+  RotateCw,
+  Loader2,
+  AlertCircle,
+} from "lucide-react";
+import {
+  UltravoxSession,
+  UltravoxSessionStatus,
+  Medium,
+} from "ultravox-client";
 
 export default function Home() {
   const [isRecording, setIsRecording] = useState(false);
   const [fromLanguage, setFromLanguage] = useState("");
   const [toLanguage, setToLanguage] = useState("");
   const [translatedText, setTranslatedText] = useState("");
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [connectionStatus, setConnectionStatus] =
+    useState<UltravoxSessionStatus>(UltravoxSessionStatus.DISCONNECTED);
+  const [error, setError] = useState<string>("");
+  const [currentTranscript, setCurrentTranscript] = useState("");
+  const [translations, setTranslations] = useState<string[]>([]);
+
+  const sessionRef = useRef<UltravoxSession | null>(null);
+  const joinUrlRef = useRef<string>("");
 
   const languages = [
     { code: "en", name: "English" },
@@ -26,13 +48,184 @@ export default function Home() {
     { code: "ar", name: "Arabic" },
   ];
 
+  const getLanguageName = (code: string) => {
+    return languages.find((lang) => lang.code === code)?.name || code;
+  };
+
+  const createSystemPrompt = () => {
+    const fromLang = getLanguageName(fromLanguage);
+    const toLang = getLanguageName(toLanguage);
+
+    return `You are a professional legal translator specializing in ${fromLang} to ${toLang} translation. Your expertise ensures legally accurate and contextually appropriate translations.
+
+CRITICAL TRANSLATION REQUIREMENTS:
+- You are translating from ${fromLang} to ${toLang}
+- Provide ONLY the translated text in ${toLang}
+- Ensure translations are legally accurate and contextually appropriate
+- Maintain the original meaning, tone, and legal implications
+- Use formal, professional language appropriate for legal contexts
+- Preserve technical terms and legal terminology accurately
+- Do NOT add explanations, greetings, or commentary
+- Do NOT provide audio output - text response only
+- If legal terminology is unclear, use the most conservative/safe interpretation
+
+RESPONSE FORMAT:
+- Return ONLY the translated text
+- No additional commentary or explanations
+- Maintain original sentence structure where grammatically appropriate
+- Use proper punctuation and formatting for ${toLang}
+
+ERROR HANDLING:
+- If audio is unclear: "Audio unclear, please repeat"
+- If no speech detected: "No speech detected"
+- If translation is impossible: "Unable to translate - please rephrase"
+
+LEGAL ACCURACY STANDARDS:
+- Ensure contractual terms are accurately translated
+- Maintain legal document structure and formatting
+- Preserve numerical values, dates, and proper nouns
+- Use appropriate legal register for ${toLang}
+- Consider cultural and jurisdictional differences in legal concepts
+
+Example flow:
+User speaks in ${fromLang}: [Legal content]
+Your response: [Accurate ${toLang} translation only]
+
+Remember: Provide ONLY the legally accurate translation in ${toLang}, nothing else.`;
+  };
+
   const canRecord = fromLanguage && toLanguage && fromLanguage !== toLanguage;
 
-  const handleRecording = () => {
-    if (!canRecord) return;
-    setIsRecording(!isRecording);
-    // Add your recording logic here
+  // Get Ultravox join URL from your backend
+  const fetchJoinUrl = async () => {
+    try {
+      // Replace this with your actual API endpoint to get join URL
+      // This should call your backend which creates an Ultravox call with the system prompt
+      const response = await fetch("/api/ultravox/create-call", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          systemPrompt: createSystemPrompt(),
+          temperature: 1,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to create Ultravox call");
+      }
+
+      const data = await response.json();
+      return data.joinUrl;
+    } catch (error) {
+      console.error("Error fetching join URL:", error);
+      // For demo purposes, using a placeholder
+      throw new Error("Please configure your Ultravox API endpoint");
+    }
   };
+
+  const startUltravoxSession = async () => {
+    if (!canRecord) return;
+
+    setIsConnecting(true);
+    setError("");
+    setTranslatedText("");
+    setCurrentTranscript("");
+
+    try {
+      // Create a new Ultravox session
+      const session = new UltravoxSession({
+        experimentalMessages: new Set(["transcript"]),
+      });
+
+      sessionRef.current = session;
+
+      // Set up event listeners
+      session.addEventListener("status", () => {
+        const status = session.status;
+        setConnectionStatus(status);
+
+        if (
+          status === UltravoxSessionStatus.SPEAKING ||
+          status === UltravoxSessionStatus.LISTENING ||
+          status === UltravoxSessionStatus.THINKING
+        ) {
+          session?.setOutputMedium(Medium.TEXT);
+        }
+        if (
+          status === UltravoxSessionStatus.IDLE ||
+          status === UltravoxSessionStatus.LISTENING
+        ) {
+          setIsConnecting(false);
+          setIsRecording(true);
+        } else if (status === UltravoxSessionStatus.DISCONNECTED) {
+          setIsRecording(false);
+          setIsConnecting(false);
+        }
+      });
+
+      interface Transcript {
+        text: string;
+        speaker: "user" | "agent";
+      }
+
+      session.addEventListener("transcripts", () => {
+        const transcripts = session.transcripts;
+
+        const agentTranscripts = transcripts
+          ?.map((t: Transcript) => (t.speaker === "agent" ? t.text : null))
+          .filter((text): text is string => text !== null);
+        setTranslations(agentTranscripts);
+      });
+
+      // Listen for experimental messages that might contain translations
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      session.addEventListener("experimental_message", (event: any) => {
+        if (event.message && event.message.type === "agent_response") {
+          setTranslatedText(event.message.content);
+        }
+      });
+
+      // Get join URL and connect
+      const joinUrl = await fetchJoinUrl();
+      joinUrlRef.current = joinUrl;
+
+      session.joinCall(joinUrl);
+    } catch (error) {
+      console.error("Failed to start Ultravox session:", error);
+      setError(error instanceof Error ? error.message : "Failed to connect");
+      setIsConnecting(false);
+      setConnectionStatus(UltravoxSessionStatus.DISCONNECTED);
+    }
+  };
+
+  const stopUltravoxSession = async () => {
+    if (sessionRef.current) {
+      await sessionRef.current.leaveCall();
+      sessionRef.current = null;
+    }
+    setIsRecording(false);
+    setConnectionStatus(UltravoxSessionStatus.DISCONNECTED);
+    setCurrentTranscript("");
+  };
+
+  const handleRecording = async () => {
+    if (isRecording) {
+      await stopUltravoxSession();
+    } else {
+      await startUltravoxSession();
+    }
+  };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (sessionRef.current) {
+        sessionRef.current.leaveCall();
+      }
+    };
+  }, []);
 
   const swapLanguages = () => {
     const temp = fromLanguage;
@@ -73,18 +266,29 @@ export default function Home() {
           <div className="relative">
             <Button
               onClick={handleRecording}
-              disabled={!canRecord}
+              disabled={(!canRecord && !isRecording) || isConnecting}
               size="lg"
               className={`w-32 h-32 rounded-full text-white font-semibold text-lg transition-all duration-300 ${
-                !canRecord
+                (!canRecord && !isRecording) || isConnecting
                   ? "bg-gradient-to-r from-gray-400 to-gray-500 cursor-not-allowed shadow-lg opacity-50"
                   : isRecording
-                  ? "bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 shadow-2xl shadow-red-500/25"
-                  : "bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 shadow-2xl shadow-blue-500/25"
+                  ? "bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 shadow-2xl shadow-red-500/25 hover:scale-105"
+                  : "bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 shadow-2xl shadow-blue-500/25 hover:scale-105"
               }`}
             >
               <AnimatePresence mode="wait">
-                {isRecording ? (
+                {isConnecting ? (
+                  <motion.div
+                    key="connecting"
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    exit={{ scale: 0 }}
+                    className="flex flex-col items-center"
+                  >
+                    <Loader2 className="w-8 h-8 mb-2 animate-spin" />
+                    <span className="text-sm font-bold">Connecting</span>
+                  </motion.div>
+                ) : isRecording ? (
                   <motion.div
                     key="recording"
                     initial={{ scale: 0 }}
@@ -93,7 +297,8 @@ export default function Home() {
                     className="flex flex-col items-center"
                   >
                     <MicOff className="w-8 h-8 mb-2" />
-                    <span className="text-sm">Stop</span>
+                    <span className="text-sm font-bold">Stop</span>
+                    <span className="text-xs opacity-80">Click to stop</span>
                   </motion.div>
                 ) : (
                   <motion.div
@@ -104,7 +309,8 @@ export default function Home() {
                     className="flex flex-col items-center"
                   >
                     <Mic className="w-8 h-8 mb-2" />
-                    <span className="text-sm">Record</span>
+                    <span className="text-sm font-bold">Record</span>
+                    <span className="text-xs opacity-80">Click to start</span>
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -242,45 +448,25 @@ export default function Home() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                <Textarea
-                  placeholder="Your translated text will appear here..."
-                  value={translatedText}
-                  onChange={(e) => setTranslatedText(e.target.value)}
-                  className="min-h-[200px] resize-none bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-lg leading-relaxed"
-                />
-
-                {translatedText && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="flex gap-2"
-                  >
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() =>
-                        navigator.clipboard.writeText(translatedText)
-                      }
-                      className="flex items-center gap-2"
-                    >
-                      <Copy className="w-4 h-4" />
-                      Copy
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        /* Add text-to-speech logic */
-                      }}
-                      className="flex items-center gap-2"
-                    >
-                      <Volume2 className="w-4 h-4" />
-                      Play
-                    </Button>
-                  </motion.div>
-                )}
-              </div>
+              <>
+                <div className="border-t border-slate-200 dark:border-slate-600 pt-4">
+                  <h3 className="text-sm font-medium mb-2 text-slate-600 dark:text-slate-300">
+                    Translation History
+                  </h3>
+                  <div className="max-h-[200px] overflow-y-auto space-y-2">
+                    {translations.map((text, index) => (
+                      <div
+                        key={index}
+                        className="p-3 rounded-md bg-slate-50 dark:bg-slate-700 text-sm"
+                      >
+                        <p className="text-slate-700 dark:text-slate-300">
+                          {text}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
             </CardContent>
           </Card>
         </motion.div>
@@ -292,32 +478,47 @@ export default function Home() {
           transition={{ duration: 0.5, delay: 0.8 }}
           className="text-center mt-8"
         >
-          <div
-            className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium ${
-              isRecording
-                ? "bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400"
-                : !canRecord
-                ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400"
-                : "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400"
-            }`}
-          >
+          {error ? (
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400 mb-4">
+              <AlertCircle className="w-4 h-4" />
+              {error}
+            </div>
+          ) : (
             <div
-              className={`w-2 h-2 rounded-full ${
-                isRecording
-                  ? "bg-red-500 animate-pulse"
+              className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium ${
+                isConnecting
+                  ? "bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400"
+                  : isRecording
+                  ? "bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400"
                   : !canRecord
-                  ? "bg-yellow-500"
-                  : "bg-green-500"
+                  ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400"
+                  : "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400"
               }`}
-            />
-            {isRecording
-              ? "Recording in progress..."
-              : !fromLanguage || !toLanguage
-              ? "Please select both languages to start recording"
-              : fromLanguage === toLanguage
-              ? "Please select different languages"
-              : "Ready to record"}
-          </div>
+            >
+              <div
+                className={`w-2 h-2 rounded-full ${
+                  isConnecting
+                    ? "bg-blue-500 animate-pulse"
+                    : isRecording
+                    ? "bg-red-500 animate-pulse"
+                    : !canRecord
+                    ? "bg-yellow-500"
+                    : "bg-green-500"
+                }`}
+              />
+              {isConnecting
+                ? "Connecting to Ultravox..."
+                : isRecording
+                ? `Listening for ${getLanguageName(
+                    fromLanguage
+                  )}... (Status: ${connectionStatus})`
+                : !fromLanguage || !toLanguage
+                ? "Please select both languages to start recording"
+                : fromLanguage === toLanguage
+                ? "Please select different languages"
+                : "Ready to record - Legal translation mode"}
+            </div>
+          )}
         </motion.div>
       </div>
     </div>

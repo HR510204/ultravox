@@ -1,36 +1,54 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# UltraVox AI Voice Translation App
 
-## Getting Started
+A beautiful real-time voice translation application powered by UltraVox AI, supporting English, Hindi, and Arabic with legally accurate translations.
 
-First, run the development server:
+## Features
+
+- 🎤 **Real-time Voice Recording** - High-quality audio capture
+- 🌍 **3-Language Support** - English, Hindi, and Arabic
+- ⚖️ **Legal Translation Accuracy** - Professional-grade translations suitable for legal contexts
+- 🎨 **Beautiful UI** - Modern glassmorphism design with smooth animations
+- 🔄 **Live Transcription** - See what you're saying in real-time
+- 📝 **Text Output** - Copy and use translations instantly
+- 🚫 **No Voice Output** - Text-only translations to avoid audio interference
+
+## Setup Instructions
+
+### 1. Install Dependencies
+
+```bash
+npm install
+```
+
+### 2. Configure UltraVox API
+
+1. Get your API key from [UltraVox Dashboard](https://dashboard.ultravox.ai)
+2. Update `.env.local` with your API key
+
+### 3. Run the Development Server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3001](http://localhost:3001) to view the application.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## How to Use
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. **Select Languages**: Choose your source and target languages from the dropdowns
+2. **Start Recording**: Click the large blue record button to begin
+3. **Speak**: Talk clearly in your source language
+4. **Get Translation**: View the legally accurate translation in real-time
+5. **Copy Text**: Use the copy button to copy translations
+6. **Stop Recording**: Click the red stop button to end the session
 
-## Learn More
+## System Prompt Features
 
-To learn more about Next.js, take a look at the following resources:
+The application uses a sophisticated system prompt that ensures:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **Legal Accuracy**: Translations are contextually appropriate for legal documents
+- **Professional Language**: Uses formal, professional register appropriate for legal contexts
+- **Terminology Preservation**: Maintains technical and legal terms accurately
+- **Conservative Interpretation**: Uses safe interpretations when terminology is unclear
+- **Cultural Sensitivity**: Considers jurisdictional differences in legal concepts
+- **Formatting Preservation**: Maintains document structure and numerical values
