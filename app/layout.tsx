@@ -13,9 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "UltraVox - AI Voice Translation",
-  description:
-    "Real-time voice translation powered by AI. Translate between English, Hindi, and Arabic instantly.",
+  title: "Live Voice Translation",
+  description: "Real-time voice translation application",
 };
 
 export default function RootLayout({

@@ -60,6 +60,12 @@ export default function Home() {
   - Wait silently for the user to speak first
   - Only respond when you receive speech input to translate
   - Never initiate conversation or provide welcome messages
+  - Focus solely on translating legal content from ${fromLang} to ${toLang}
+  - Maintain a formal, professional tone suitable for legal contexts
+  - Use the most conservative interpretation of legal terms
+  - Do NOT provide explanations, greetings, or commentary
+  - Do NOT provide audio output - text response only
+  - Wait for the user to speak before responding
   
   CRITICAL TRANSLATION REQUIREMENTS:
   - You are translating from ${fromLang} to ${toLang}
@@ -139,7 +145,6 @@ export default function Home() {
       const session = new UltravoxSession({
         experimentalMessages: new Set(["transcript"]),
       });
-
       sessionRef.current = session;
 
       // Set up event listeners
@@ -147,12 +152,17 @@ export default function Home() {
         const status = session.status;
         setConnectionStatus(status);
 
+        // Set output medium and mute speaker once connected
         if (
-          status === UltravoxSessionStatus.SPEAKING ||
           status === UltravoxSessionStatus.LISTENING ||
-          status === UltravoxSessionStatus.THINKING
+          status === UltravoxSessionStatus.SPEAKING
         ) {
-          session?.setOutputMedium(Medium.TEXT);
+          session.setOutputMedium(Medium.TEXT);
+          session.muteSpeaker();
+        }
+
+        if (status === UltravoxSessionStatus.SPEAKING) {
+          session.setOutputMedium(Medium.TEXT);
         }
         if (
           status === UltravoxSessionStatus.IDLE ||
@@ -175,7 +185,9 @@ export default function Home() {
         const transcripts = session.transcripts;
 
         const agentTranscripts = transcripts
-          ?.map((t: Transcript) => (t.speaker === "agent" ? t.text : null))
+          ?.map((t: Transcript, index: number) =>
+            t.speaker === "agent" && index !== 0 ? t.text : null
+          )
           .filter((text): text is string => text !== null);
         setTranslations(agentTranscripts);
       });
@@ -183,7 +195,7 @@ export default function Home() {
       // Listen for experimental messages that might contain translations
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       session.addEventListener("experimental_message", (event: any) => {
-        console.log("Experimental message received:", event.message);
+        console.log("Experimental message received:", event.message.type);
       });
 
       // Get join URL and connect
@@ -242,8 +254,8 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 p-4">
-      <div className="container mx-auto max-w-4xl py-8">
+    <div className="min-h-screen bg-white dark:bg-black p-4">
+      <div className="container mx-auto max-w-7xl py-8">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
@@ -252,292 +264,304 @@ export default function Home() {
           className="text-center mb-12"
         >
           <div className="flex items-center justify-center gap-3 mb-4">
-            <div className="p-3 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full">
-              <Languages className="w-8 h-8 text-white" />
+            <div className="p-3 bg-black dark:bg-white rounded-full">
+              <Languages className="w-8 h-8 text-white dark:text-black" />
             </div>
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-              Live Translations
+            <h1 className="text-4xl font-bold text-black dark:text-white">
+              Live Voice Translations
             </h1>
           </div>
         </motion.div>
 
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-          className="flex justify-center mb-12"
-        >
-          <motion.div
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            className="relative"
-          >
-            <Button
-              onClick={handleRecording}
-              disabled={!canRecord || isConnecting}
-              size="lg"
-              className={`relative w-40 h-20 rounded-2xl font-bold text-lg transition-all duration-500 shadow-2xl border-0 overflow-hidden group ${
-                isRecording
-                  ? "bg-gradient-to-r from-red-500 to-red-600 text-white hover:from-red-600 hover:to-red-700"
-                  : "bg-gradient-to-r from-blue-500 to-indigo-600 text-white hover:from-blue-600 hover:to-indigo-700"
-              } disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100`}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8">
+          {/* Left Column: Controls */}
+          <div className="flex flex-col gap-8">
+            {/* Language Selection */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.4 }}
             >
-              {/* Animated background overlay */}
-              <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-
-              {/* Button content */}
-              <div className="relative z-10 flex items-center justify-center gap-3">
-                <AnimatePresence mode="wait">
-                  {isConnecting ? (
-                    <motion.div
-                      key="connecting"
-                      initial={{ opacity: 0, rotate: -180 }}
-                      animate={{ opacity: 1, rotate: 0 }}
-                      exit={{ opacity: 0, rotate: 180 }}
-                      transition={{ duration: 0.3 }}
-                    >
-                      <Loader2 className="w-6 h-6 animate-spin" />
-                    </motion.div>
-                  ) : isRecording ? (
-                    <motion.div
-                      key="recording"
-                      initial={{ opacity: 0, scale: 0 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0 }}
-                      transition={{ duration: 0.3 }}
-                    >
-                      <MicOff className="w-6 h-6" />
-                    </motion.div>
-                  ) : (
-                    <motion.div
-                      key="ready"
-                      initial={{ opacity: 0, scale: 0 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0 }}
-                      transition={{ duration: 0.3 }}
-                    >
-                      <Mic className="w-6 h-6" />
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-                <span className="font-semibold">
-                  {isConnecting
-                    ? "Connecting..."
-                    : isRecording
-                    ? "Stop"
-                    : "Record"}
-                </span>
-              </div>
-
-              {/* Pulse animation for recording state */}
-              {isRecording && (
-                <motion.div
-                  className="absolute inset-0 rounded-2xl border-4 border-red-300"
-                  animate={{
-                    scale: [1, 1.1, 1],
-                    opacity: [0.7, 0, 0.7],
-                  }}
-                  transition={{
-                    duration: 2,
-                    repeat: Infinity,
-                    ease: "easeInOut",
-                  }}
-                />
-              )}
-            </Button>
-          </motion.div>
-        </motion.div>
-
-        {/* Language Selection */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.4 }}
-          className="mb-8"
-        >
-          <Card
-            className={`shadow-lg border-0 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm transition-all duration-300 ${
-              !canRecord ? "ring-2 ring-yellow-300 dark:ring-yellow-600" : ""
-            }`}
-          >
-            <CardHeader>
-              <CardTitle className="text-center text-xl font-semibold text-slate-700 dark:text-slate-200 flex items-center justify-center gap-2">
-                Select Languages
-                {!canRecord && (
-                  <span className="text-yellow-500 text-sm">*Required</span>
-                )}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-4">
-                <div className="flex-1">
-                  <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-2">
-                    From <span className="text-red-500">*</span>
-                  </label>
-                  <Select value={fromLanguage} onValueChange={setFromLanguage}>
-                    <SelectTrigger
-                      className={`w-full h-12 bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 ${
-                        !fromLanguage
-                          ? "border-red-300 dark:border-red-600"
-                          : ""
-                      }`}
-                    >
-                      <SelectValue placeholder="Select source language" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {languages.map((lang) => (
-                        <SelectItem
-                          key={lang.code}
-                          value={lang.code}
-                          disabled={lang.code === toLanguage}
+              <Card
+                className={`shadow-lg border-0 bg-neutral-50 dark:bg-neutral-900 transition-all duration-300 ${
+                  !canRecord ? "ring-2 ring-black dark:ring-white" : ""
+                }`}
+              >
+                <CardHeader>
+                  <CardTitle className="text-center text-xl font-semibold text-black dark:text-white flex items-center justify-center gap-2">
+                    Select Languages
+                    {!canRecord && (
+                      <span className="text-black dark:text-white text-sm">
+                        *Required
+                      </span>
+                    )}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center gap-4">
+                    <div className="flex-1">
+                      <label className="block text-sm font-medium text-neutral-800 dark:text-neutral-200 mb-2">
+                        From{" "}
+                        <span className="text-black dark:text-white">*</span>
+                      </label>
+                      <Select
+                        value={fromLanguage}
+                        onValueChange={setFromLanguage}
+                      >
+                        <SelectTrigger
+                          className={`w-full h-12 bg-white dark:bg-black border-neutral-300 dark:border-neutral-700 ${
+                            !fromLanguage
+                              ? "border-black dark:border-white"
+                              : ""
+                          }`}
                         >
-                          {lang.name}
-                          {lang.code === toLanguage &&
-                            " (Already selected as target)"}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                          <SelectValue placeholder="Select source language" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {languages.map((lang) => (
+                            <SelectItem
+                              key={lang.code}
+                              value={lang.code}
+                              disabled={lang.code === toLanguage}
+                            >
+                              {lang.name}
+                              {lang.code === toLanguage &&
+                                " (Already selected as target)"}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-                <motion.div
-                  whileHover={{ rotate: 180 }}
-                  transition={{ duration: 0.3 }}
-                  className="mt-6"
+                    <motion.div
+                      whileHover={{ rotate: 180 }}
+                      transition={{ duration: 0.3 }}
+                      className="mt-6"
+                    >
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={swapLanguages}
+                        disabled={!fromLanguage || !toLanguage}
+                        className="rounded-full w-12 h-12 border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:opacity-50"
+                      >
+                        <RotateCw className="w-4 h-4" />
+                      </Button>
+                    </motion.div>
+
+                    <div className="flex-1">
+                      <label className="block text-sm font-medium text-neutral-800 dark:text-neutral-200 mb-2">
+                        To <span className="text-black dark:text-white">*</span>
+                      </label>
+                      <Select value={toLanguage} onValueChange={setToLanguage}>
+                        <SelectTrigger
+                          className={`w-full h-12 bg-white dark:bg-black border-neutral-300 dark:border-neutral-700 ${
+                            !toLanguage ? "border-black dark:border-white" : ""
+                          }`}
+                        >
+                          <SelectValue placeholder="Select target language" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {languages.map((lang) => (
+                            <SelectItem
+                              key={lang.code}
+                              value={lang.code}
+                              disabled={lang.code === fromLanguage}
+                            >
+                              {lang.name}
+                              {lang.code === fromLanguage &&
+                                " (Already selected as source)"}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+
+            {/* Status indicator */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.5, delay: 0.8 }}
+              className="text-center"
+            >
+              {error ? (
+                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium bg-neutral-900 text-white dark:bg-neutral-200 dark:text-black mb-4">
+                  <AlertCircle className="w-4 h-4" />
+                  {error}
+                </div>
+              ) : (
+                <div
+                  className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium ${
+                    isConnecting
+                      ? "bg-neutral-200 text-black dark:bg-neutral-800 dark:text-white"
+                      : isRecording
+                      ? "bg-neutral-200 text-black dark:bg-neutral-800 dark:text-white"
+                      : !canRecord
+                      ? "bg-neutral-200 text-black dark:bg-neutral-800 dark:text-white"
+                      : "bg-neutral-200 text-black dark:bg-neutral-800 dark:text-white"
+                  }`}
                 >
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={swapLanguages}
-                    disabled={!fromLanguage || !toLanguage}
-                    className="rounded-full w-12 h-12 border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50"
-                  >
-                    <RotateCw className="w-4 h-4" />
-                  </Button>
-                </motion.div>
-
-                <div className="flex-1">
-                  <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-2">
-                    To <span className="text-red-500">*</span>
-                  </label>
-                  <Select value={toLanguage} onValueChange={setToLanguage}>
-                    <SelectTrigger
-                      className={`w-full h-12 bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 ${
-                        !toLanguage ? "border-red-300 dark:border-red-600" : ""
-                      }`}
-                    >
-                      <SelectValue placeholder="Select target language" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {languages.map((lang) => (
-                        <SelectItem
-                          key={lang.code}
-                          value={lang.code}
-                          disabled={lang.code === fromLanguage}
-                        >
-                          {lang.name}
-                          {lang.code === fromLanguage &&
-                            " (Already selected as source)"}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div
+                    className={`w-2 h-2 rounded-full ${
+                      isConnecting
+                        ? "bg-black dark:bg-white animate-pulse"
+                        : isRecording
+                        ? "bg-black dark:bg-white animate-pulse"
+                        : !canRecord
+                        ? "bg-black dark:bg-white"
+                        : "bg-black dark:bg-white"
+                    }`}
+                  />
+                  {isConnecting
+                    ? "Connecting to Ultravox..."
+                    : isRecording
+                    ? `Listening for ${getLanguageName(
+                        fromLanguage
+                      )}... (Status: ${connectionStatus})`
+                    : !fromLanguage || !toLanguage
+                    ? "Please select both languages to start recording"
+                    : fromLanguage === toLanguage
+                    ? "Please select different languages"
+                    : "Ready to record - Legal translation mode"}
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
+              )}
+            </motion.div>
 
-        {/* Translation Area */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.6 }}
-        >
-          <Card className="shadow-lg border-0 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm">
-            <CardHeader>
-              <CardTitle className="text-center text-xl font-semibold text-slate-700 dark:text-slate-200 flex items-center justify-center gap-2">
-                <Volume2 className="w-5 h-5" />
-                Translation
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <>
-                <div className="border-t border-slate-200 dark:border-slate-600 pt-4">
-                  <h3 className="text-sm font-medium mb-2 text-slate-600 dark:text-slate-300">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+              className="flex justify-center"
+            >
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="relative"
+              >
+                <Button
+                  onClick={handleRecording}
+                  disabled={!canRecord || isConnecting}
+                  size="lg"
+                  className={`relative w-40 h-20 rounded-2xl font-bold text-lg transition-all duration-500 shadow-2xl border-0 overflow-hidden group ${
+                    isRecording
+                      ? "bg-neutral-800 text-white hover:bg-neutral-700 dark:bg-neutral-300 dark:text-black dark:hover:bg-neutral-400"
+                      : "bg-black text-white hover:bg-neutral-800 dark:bg-white dark:text-black dark:hover:bg-neutral-200"
+                  } disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100`}
+                >
+                  {/* Animated background overlay */}
+                  <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+
+                  {/* Button content */}
+                  <div className="relative z-10 flex items-center justify-center gap-3">
+                    <AnimatePresence mode="wait">
+                      {isConnecting ? (
+                        <motion.div
+                          key="connecting"
+                          initial={{ opacity: 0, rotate: -180 }}
+                          animate={{ opacity: 1, rotate: 0 }}
+                          exit={{ opacity: 0, rotate: 180 }}
+                          transition={{ duration: 0.3 }}
+                        >
+                          <Loader2 className="w-6 h-6 animate-spin" />
+                        </motion.div>
+                      ) : isRecording ? (
+                        <motion.div
+                          key="recording"
+                          initial={{ opacity: 0, scale: 0 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0 }}
+                          transition={{ duration: 0.3 }}
+                        >
+                          <MicOff className="w-6 h-6" />
+                        </motion.div>
+                      ) : (
+                        <motion.div
+                          key="ready"
+                          initial={{ opacity: 0, scale: 0 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0 }}
+                          transition={{ duration: 0.3 }}
+                        >
+                          <Mic className="w-6 h-6" />
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    <span className="font-semibold">
+                      {isConnecting
+                        ? "Connecting..."
+                        : isRecording
+                        ? "Stop"
+                        : "Record"}
+                    </span>
+                  </div>
+
+                  {/* Pulse animation for recording state */}
+                  {isRecording && (
+                    <motion.div
+                      className="absolute inset-0 rounded-2xl border-4 border-neutral-400"
+                      animate={{
+                        scale: [1, 1.1, 1],
+                        opacity: [0.7, 0, 0.7],
+                      }}
+                      transition={{
+                        duration: 2,
+                        repeat: Infinity,
+                        ease: "easeInOut",
+                      }}
+                    />
+                  )}
+                </Button>
+              </motion.div>
+            </motion.div>
+          </div>
+
+          {/* Right Column: Translation Area */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.6 }}
+            className="h-full"
+          >
+            <Card className="shadow-lg border-0 bg-neutral-50 dark:bg-neutral-900 h-full flex flex-col">
+              <CardHeader>
+                <CardTitle className="text-center text-xl font-semibold text-black dark:text-white flex items-center justify-center gap-2">
+                  <Volume2 className="w-5 h-5" />
+                  Translation
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex-grow flex flex-col">
+                <div className="border-t border-neutral-200 dark:border-neutral-700 pt-4 flex-grow flex flex-col">
+                  <h3 className="text-sm font-medium mb-2 text-neutral-600 dark:text-neutral-300">
                     Translation History
                   </h3>
                   <div
-                    className="max-h-[200px] overflow-y-auto space-y-2"
+                    className="flex-grow overflow-y-auto space-y-2 pr-2 max-h-[60vh]"
                     ref={translationHistoryRef}
                   >
+                    {translations.length === 0 && (
+                      <div className="flex items-center justify-center h-full text-neutral-500 dark:text-neutral-400">
+                        <p>Translations will appear here...</p>
+                      </div>
+                    )}
                     {translations.map((text, index) => (
                       <div
                         key={index}
-                        className="p-3 rounded-md bg-slate-50 dark:bg-slate-700 text-sm"
+                        className="p-3 rounded-md bg-white dark:bg-black text-sm"
                       >
-                        <p className="text-slate-700 dark:text-slate-300">
-                          {text}
-                        </p>
+                        <p className="text-black dark:text-white">{text}</p>
                       </div>
                     ))}
                   </div>
                 </div>
-              </>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        {/* Status indicator */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.5, delay: 0.8 }}
-          className="text-center mt-8"
-        >
-          {error ? (
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400 mb-4">
-              <AlertCircle className="w-4 h-4" />
-              {error}
-            </div>
-          ) : (
-            <div
-              className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium ${
-                isConnecting
-                  ? "bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400"
-                  : isRecording
-                  ? "bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400"
-                  : !canRecord
-                  ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400"
-                  : "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400"
-              }`}
-            >
-              <div
-                className={`w-2 h-2 rounded-full ${
-                  isConnecting
-                    ? "bg-blue-500 animate-pulse"
-                    : isRecording
-                    ? "bg-red-500 animate-pulse"
-                    : !canRecord
-                    ? "bg-yellow-500"
-                    : "bg-green-500"
-                }`}
-              />
-              {isConnecting
-                ? "Connecting to Ultravox..."
-                : isRecording
-                ? `Listening for ${getLanguageName(
-                    fromLanguage
-                  )}... (Status: ${connectionStatus})`
-                : !fromLanguage || !toLanguage
-                ? "Please select both languages to start recording"
-                : fromLanguage === toLanguage
-                ? "Please select different languages"
-                : "Ready to record - Legal translation mode"}
-            </div>
-          )}
-        </motion.div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        </div>
       </div>
     </div>
   );
