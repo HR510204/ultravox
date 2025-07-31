@@ -31,6 +31,7 @@ export default function Home() {
   const [fromLanguage, setFromLanguage] = useState("");
   const [toLanguage, setToLanguage] = useState("");
   const [isConnecting, setIsConnecting] = useState(false);
+  const [isSwitchingLanguage, setIsSwitchingLanguage] = useState(false);
   const [connectionStatus, setConnectionStatus] =
     useState<UltravoxSessionStatus>(UltravoxSessionStatus.DISCONNECTED);
   const [error, setError] = useState<string>("");
@@ -170,6 +171,7 @@ export default function Home() {
         ) {
           setIsConnecting(false);
           setIsRecording(true);
+          setIsSwitchingLanguage(false); // Stop loader on successful reconnect
         } else if (status === UltravoxSessionStatus.DISCONNECTED) {
           setIsRecording(false);
           setIsConnecting(false);
@@ -189,7 +191,22 @@ export default function Home() {
             t.speaker === "agent" && index !== 0 ? t.text : null
           )
           .filter((text): text is string => text !== null);
-        setTranslations(agentTranscripts);
+
+        setTranslations((prevTranslations) => {
+          // Find the index of the last separator
+          const lastSeparatorIndex = prevTranslations.findLastIndex((text) =>
+            text.startsWith("---")
+          );
+
+          // Get the history up to the last separator
+          const historyBeforeCurrentSession =
+            lastSeparatorIndex !== -1
+              ? prevTranslations.slice(0, lastSeparatorIndex + 1)
+              : [];
+
+          // Combine with new transcripts for the current session
+          return [...historyBeforeCurrentSession, ...agentTranscripts];
+        });
       });
 
       // Listen for experimental messages that might contain translations
@@ -247,6 +264,33 @@ export default function Home() {
     }
   }, [translations]);
 
+  // Handle language changes during an active session
+  useEffect(() => {
+    if (isRecording) {
+      const restartSession = async () => {
+        setIsSwitchingLanguage(true);
+        const newFromLang = getLanguageName(fromLanguage);
+        const newToLang = getLanguageName(toLanguage);
+        setTranslations((prev) => [
+          ...prev,
+          `--- Session changed to ${newFromLang} → ${newToLang} ---`,
+        ]);
+        await stopUltravoxSession();
+        // Use a timeout to allow for cleanup before reconnecting
+        setTimeout(() => {
+          startUltravoxSession();
+        }, 100);
+      };
+
+      if (canRecord) {
+        restartSession();
+      } else {
+        stopUltravoxSession();
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fromLanguage, toLanguage]);
+
   const swapLanguages = () => {
     const temp = fromLanguage;
     setFromLanguage(toLanguage);
@@ -284,7 +328,7 @@ export default function Home() {
             >
               <Card
                 className={`shadow-lg border-0 bg-neutral-50 dark:bg-neutral-900 transition-all duration-300 ${
-                  !canRecord ? "ring-2 ring-black dark:ring-white" : ""
+                  !canRecord ? "dark:ring-white" : ""
                 }`}
               >
                 <CardHeader>
@@ -543,19 +587,33 @@ export default function Home() {
                     className="flex-grow overflow-y-auto space-y-2 pr-2 max-h-[60vh]"
                     ref={translationHistoryRef}
                   >
-                    {translations.length === 0 && (
+                    {translations.length === 0 && !isSwitchingLanguage && (
                       <div className="flex items-center justify-center h-full text-neutral-500 dark:text-neutral-400">
                         <p>Translations will appear here...</p>
                       </div>
                     )}
-                    {translations.map((text, index) => (
-                      <div
-                        key={index}
-                        className="p-3 rounded-md bg-white dark:bg-black text-sm"
-                      >
-                        <p className="text-black dark:text-white">{text}</p>
+                    {translations.map((text, index) =>
+                      text.startsWith("---") ? (
+                        <div
+                          key={index}
+                          className="text-center text-xs text-neutral-500 dark:text-neutral-400 py-2"
+                        >
+                          {text.replace(/---/g, "")}
+                        </div>
+                      ) : (
+                        <div
+                          key={index}
+                          className="p-3 rounded-md bg-white dark:bg-black text-sm"
+                        >
+                          <p className="text-black dark:text-white">{text}</p>
+                        </div>
+                      )
+                    )}
+                    {isSwitchingLanguage && (
+                      <div className="flex items-center justify-center p-4">
+                        <Loader2 className="w-6 h-6 animate-spin text-neutral-500 dark:text-neutral-400" />
                       </div>
-                    ))}
+                    )}
                   </div>
                 </div>
               </CardContent>
