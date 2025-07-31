@@ -11,7 +11,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
 import {
   Mic,
   MicOff,
@@ -31,16 +30,15 @@ export default function Home() {
   const [isRecording, setIsRecording] = useState(false);
   const [fromLanguage, setFromLanguage] = useState("");
   const [toLanguage, setToLanguage] = useState("");
-  const [translatedText, setTranslatedText] = useState("");
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectionStatus, setConnectionStatus] =
     useState<UltravoxSessionStatus>(UltravoxSessionStatus.DISCONNECTED);
   const [error, setError] = useState<string>("");
-  const [currentTranscript, setCurrentTranscript] = useState("");
   const [translations, setTranslations] = useState<string[]>([]);
 
   const sessionRef = useRef<UltravoxSession | null>(null);
   const joinUrlRef = useRef<string>("");
+  const translationHistoryRef = useRef<HTMLDivElement>(null);
 
   const languages = [
     { code: "en", name: "English" },
@@ -51,47 +49,52 @@ export default function Home() {
   const getLanguageName = (code: string) => {
     return languages.find((lang) => lang.code === code)?.name || code;
   };
-
   const createSystemPrompt = () => {
     const fromLang = getLanguageName(fromLanguage);
     const toLang = getLanguageName(toLanguage);
 
     return `You are a professional legal translator specializing in ${fromLang} to ${toLang} translation. Your expertise ensures legally accurate and contextually appropriate translations.
 
-CRITICAL TRANSLATION REQUIREMENTS:
-- You are translating from ${fromLang} to ${toLang}
-- Provide ONLY the translated text in ${toLang}
-- Ensure translations are legally accurate and contextually appropriate
-- Maintain the original meaning, tone, and legal implications
-- Use formal, professional language appropriate for legal contexts
-- Preserve technical terms and legal terminology accurately
-- Do NOT add explanations, greetings, or commentary
-- Do NOT provide audio output - text response only
-- If legal terminology is unclear, use the most conservative/safe interpretation
+  INTERACTION PROTOCOL:
+  - Do NOT greet the user or provide any introduction
+  - Wait silently for the user to speak first
+  - Only respond when you receive speech input to translate
+  - Never initiate conversation or provide welcome messages
+  
+  CRITICAL TRANSLATION REQUIREMENTS:
+  - You are translating from ${fromLang} to ${toLang}
+  - Provide ONLY the translated text in ${toLang}
+  - Ensure translations are legally accurate and contextually appropriate
+  - Maintain the original meaning, tone, and legal implications
+  - Use formal, professional language appropriate for legal contexts
+  - Preserve technical terms and legal terminology accurately
+  - Do NOT add explanations, greetings, or commentary
+  - Do NOT provide audio output - text response only
+  - If legal terminology is unclear, use the most conservative/safe interpretation
 
-RESPONSE FORMAT:
-- Return ONLY the translated text
-- No additional commentary or explanations
-- Maintain original sentence structure where grammatically appropriate
-- Use proper punctuation and formatting for ${toLang}
+  RESPONSE FORMAT:
+  - Return ONLY the translated text
+  - No additional commentary or explanations
+  - Maintain original sentence structure where grammatically appropriate
+  - Use proper punctuation and formatting for ${toLang}
 
-ERROR HANDLING:
-- If audio is unclear: "Audio unclear, please repeat"
-- If no speech detected: "No speech detected"
-- If translation is impossible: "Unable to translate - please rephrase"
+  ERROR HANDLING:
+  - If audio is unclear: "Audio unclear, please repeat"
+  - If no speech detected: "No speech detected"
+  - If translation is impossible: "Unable to translate - please rephrase"
 
-LEGAL ACCURACY STANDARDS:
-- Ensure contractual terms are accurately translated
-- Maintain legal document structure and formatting
-- Preserve numerical values, dates, and proper nouns
-- Use appropriate legal register for ${toLang}
-- Consider cultural and jurisdictional differences in legal concepts
+  LEGAL ACCURACY STANDARDS:
+  - Ensure contractual terms are accurately translated
+  - Maintain legal document structure and formatting
+  - Preserve numerical values, dates, and proper nouns
+  - Use appropriate legal register for ${toLang}
+  - Consider cultural and jurisdictional differences in legal concepts
 
-Example flow:
-User speaks in ${fromLang}: [Legal content]
-Your response: [Accurate ${toLang} translation only]
+  Example flow:
+  User speaks in ${fromLang}: [Legal content]
+  Your response: [Accurate ${toLang} translation only]
 
-Remember: Provide ONLY the legally accurate translation in ${toLang}, nothing else.`;
+  Remember: Provide ONLY the legally accurate translation in ${toLang}, nothing else. Stay silent until the user speaks first.`;
   };
 
   const canRecord = fromLanguage && toLanguage && fromLanguage !== toLanguage;
@@ -130,8 +133,6 @@ Remember: Provide ONLY the legally accurate translation in ${toLang}, nothing el
 
     setIsConnecting(true);
     setError("");
-    setTranslatedText("");
-    setCurrentTranscript("");
 
     try {
       // Create a new Ultravox session
@@ -182,9 +183,7 @@ Remember: Provide ONLY the legally accurate translation in ${toLang}, nothing el
       // Listen for experimental messages that might contain translations
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       session.addEventListener("experimental_message", (event: any) => {
-        if (event.message && event.message.type === "agent_response") {
-          setTranslatedText(event.message.content);
-        }
+        console.log("Experimental message received:", event.message);
       });
 
       // Get join URL and connect
@@ -207,10 +206,11 @@ Remember: Provide ONLY the legally accurate translation in ${toLang}, nothing el
     }
     setIsRecording(false);
     setConnectionStatus(UltravoxSessionStatus.DISCONNECTED);
-    setCurrentTranscript("");
   };
 
   const handleRecording = async () => {
+    console.log("handleRecording called, isRecording:", isRecording);
+
     if (isRecording) {
       await stopUltravoxSession();
     } else {
@@ -226,6 +226,14 @@ Remember: Provide ONLY the legally accurate translation in ${toLang}, nothing el
       }
     };
   }, []);
+
+  // Auto-scroll to bottom when translations update
+  useEffect(() => {
+    if (translationHistoryRef.current && translations.length > 0) {
+      translationHistoryRef.current.scrollTop =
+        translationHistoryRef.current.scrollHeight;
+    }
+  }, [translations]);
 
   const swapLanguages = () => {
     const temp = fromLanguage;
@@ -248,90 +256,97 @@ Remember: Provide ONLY the legally accurate translation in ${toLang}, nothing el
               <Languages className="w-8 h-8 text-white" />
             </div>
             <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-              UltraVox
+              Live Translations
             </h1>
           </div>
-          <p className="text-lg text-slate-600 dark:text-slate-300">
-            Real-time voice translation powered by AI
-          </p>
         </motion.div>
 
-        {/* Recording Button */}
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.5, delay: 0.2 }}
           className="flex justify-center mb-12"
         >
-          <div className="relative">
+          <motion.div
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className="relative"
+          >
             <Button
               onClick={handleRecording}
-              disabled={(!canRecord && !isRecording) || isConnecting}
+              disabled={!canRecord || isConnecting}
               size="lg"
-              className={`w-32 h-32 rounded-full text-white font-semibold text-lg transition-all duration-300 ${
-                (!canRecord && !isRecording) || isConnecting
-                  ? "bg-gradient-to-r from-gray-400 to-gray-500 cursor-not-allowed shadow-lg opacity-50"
-                  : isRecording
-                  ? "bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 shadow-2xl shadow-red-500/25 hover:scale-105"
-                  : "bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 shadow-2xl shadow-blue-500/25 hover:scale-105"
-              }`}
+              className={`relative w-40 h-20 rounded-2xl font-bold text-lg transition-all duration-500 shadow-2xl border-0 overflow-hidden group ${
+                isRecording
+                  ? "bg-gradient-to-r from-red-500 to-red-600 text-white hover:from-red-600 hover:to-red-700"
+                  : "bg-gradient-to-r from-blue-500 to-indigo-600 text-white hover:from-blue-600 hover:to-indigo-700"
+              } disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100`}
             >
-              <AnimatePresence mode="wait">
-                {isConnecting ? (
-                  <motion.div
-                    key="connecting"
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    exit={{ scale: 0 }}
-                    className="flex flex-col items-center"
-                  >
-                    <Loader2 className="w-8 h-8 mb-2 animate-spin" />
-                    <span className="text-sm font-bold">Connecting</span>
-                  </motion.div>
-                ) : isRecording ? (
-                  <motion.div
-                    key="recording"
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    exit={{ scale: 0 }}
-                    className="flex flex-col items-center"
-                  >
-                    <MicOff className="w-8 h-8 mb-2" />
-                    <span className="text-sm font-bold">Stop</span>
-                    <span className="text-xs opacity-80">Click to stop</span>
-                  </motion.div>
-                ) : (
-                  <motion.div
-                    key="stopped"
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    exit={{ scale: 0 }}
-                    className="flex flex-col items-center"
-                  >
-                    <Mic className="w-8 h-8 mb-2" />
-                    <span className="text-sm font-bold">Record</span>
-                    <span className="text-xs opacity-80">Click to start</span>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </Button>
+              {/* Animated background overlay */}
+              <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
-            {/* Pulse animation for recording */}
-            {isRecording && (
-              <motion.div
-                className="absolute inset-0 rounded-full border-4 border-red-400"
-                animate={{
-                  scale: [1, 1.2, 1],
-                  opacity: [0.7, 0, 0.7],
-                }}
-                transition={{
-                  duration: 2,
-                  repeat: Infinity,
-                  ease: "easeInOut",
-                }}
-              />
-            )}
-          </div>
+              {/* Button content */}
+              <div className="relative z-10 flex items-center justify-center gap-3">
+                <AnimatePresence mode="wait">
+                  {isConnecting ? (
+                    <motion.div
+                      key="connecting"
+                      initial={{ opacity: 0, rotate: -180 }}
+                      animate={{ opacity: 1, rotate: 0 }}
+                      exit={{ opacity: 0, rotate: 180 }}
+                      transition={{ duration: 0.3 }}
+                    >
+                      <Loader2 className="w-6 h-6 animate-spin" />
+                    </motion.div>
+                  ) : isRecording ? (
+                    <motion.div
+                      key="recording"
+                      initial={{ opacity: 0, scale: 0 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0 }}
+                      transition={{ duration: 0.3 }}
+                    >
+                      <MicOff className="w-6 h-6" />
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      key="ready"
+                      initial={{ opacity: 0, scale: 0 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0 }}
+                      transition={{ duration: 0.3 }}
+                    >
+                      <Mic className="w-6 h-6" />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                <span className="font-semibold">
+                  {isConnecting
+                    ? "Connecting..."
+                    : isRecording
+                    ? "Stop"
+                    : "Record"}
+                </span>
+              </div>
+
+              {/* Pulse animation for recording state */}
+              {isRecording && (
+                <motion.div
+                  className="absolute inset-0 rounded-2xl border-4 border-red-300"
+                  animate={{
+                    scale: [1, 1.1, 1],
+                    opacity: [0.7, 0, 0.7],
+                  }}
+                  transition={{
+                    duration: 2,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                  }}
+                />
+              )}
+            </Button>
+          </motion.div>
         </motion.div>
 
         {/* Language Selection */}
@@ -453,7 +468,10 @@ Remember: Provide ONLY the legally accurate translation in ${toLang}, nothing el
                   <h3 className="text-sm font-medium mb-2 text-slate-600 dark:text-slate-300">
                     Translation History
                   </h3>
-                  <div className="max-h-[200px] overflow-y-auto space-y-2">
+                  <div
+                    className="max-h-[200px] overflow-y-auto space-y-2"
+                    ref={translationHistoryRef}
+                  >
                     {translations.map((text, index) => (
                       <div
                         key={index}
