@@ -512,7 +512,7 @@ export default function Home() {
                   onClick={handleRecording}
                   disabled={!canRecord || isConnecting}
                   size="lg"
-                  className={`relative w-40 h-20 rounded-2xl font-bold text-lg transition-all duration-500 shadow-2xl border-0 overflow-hidden group ${
+                  className={`relative w-60 h-20 rounded-2xl font-bold text-lg transition-all duration-500 shadow-2xl border-0 overflow-hidden group ${
                     isRecording
                       ? "bg-neutral-800 text-white hover:bg-neutral-700 dark:bg-neutral-300 dark:text-black dark:hover:bg-neutral-400"
                       : "bg-black text-white hover:bg-neutral-800 dark:bg-white dark:text-black dark:hover:bg-neutral-200"
