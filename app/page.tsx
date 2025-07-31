@@ -118,7 +118,7 @@ export default function Home() {
         },
         body: JSON.stringify({
           systemPrompt: createSystemPrompt(),
-          temperature: 1,
+          temperature: 0.1,
         }),
       });
 

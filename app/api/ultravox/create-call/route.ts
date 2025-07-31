@@ -2,11 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(request: NextRequest) {
   try {
-    const {
-      systemPrompt,
-      temperature = 0.1,
-      voice = null,
-    } = await request.json();
+    const { systemPrompt, temperature = 0.1 } = await request.json();
 
     // Your Ultravox API key should be stored in environment variables
     const apiKey = process.env.ULTRAVOX_API_KEY;
